@@ -12,12 +12,13 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 class Obj_det():
+	print "Import complete"
 	flag = False
 	subs_pose_info = Pose()
 	def __init__(self):
 		rospy.init_node('offboard_test', anonymous=True)
 		img_coor_pub = rospy.Publisher('/our_topic', Pose, queue_size=10)
-		img_sub = rospy.Subscriber('/uav_camera/image_raw_down', Image, self.callback)
+		img_sub = rospy.Subscriber('/uav_camera_down/image_raw', Image, self.callback)
 		rate = rospy.Rate(10)
 		rate.sleep()
 
@@ -36,7 +37,7 @@ class Obj_det():
 				# and threshold it
 				gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
 				blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-				thresh = cv2.threshold(blurred, 200, 255, cv2.THRESH_BINARY)[1]
+				thresh = cv2.threshold(blurred, 220, 255, cv2.THRESH_BINARY)[1]
 				#cv2.imshow("threshold", thresh)
 				#cv2.waitKey(0)
 

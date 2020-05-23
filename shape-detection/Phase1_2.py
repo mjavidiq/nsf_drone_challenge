@@ -11,6 +11,7 @@ from geometry_msgs.msg import PoseStamped, Point, Quaternion , PoseArray, Twist,
 from gazebo_msgs.msg import ContactsState
 import math
 import numpy
+from std_msgs.msg import String
 
 class OffbPosCtl:
 	curr_pose = PoseStamped()
@@ -18,7 +19,6 @@ class OffbPosCtl:
 	vel = Twist()
 	isReadyToFly = False
 	tagDetected = False
-	bumperDetected = False
 	firstTag = False
 	isStart = False
 	x_cam = 0
@@ -32,7 +32,7 @@ class OffbPosCtl:
 		tag_pose = rospy.Subscriber('/our_topic', Pose, callback=self.tag_pose_cb)
 		mocap_sub = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, callback=self.mocap_cb)
 		state_sub = rospy.Subscriber('/mavros/state', State, callback=self.state_cb)
-		bumper_sub = rospy.Subscriber('/benchmarker/collision', ContactsState, callback=self.bumper_cb)
+		self.attach = rospy.Publisher('/attach', String, queue_size=10)
 
 		rate = rospy.Rate(5)  # Hz
 		rate.sleep()
@@ -44,33 +44,50 @@ class OffbPosCtl:
 
 	#New Addition Below 
 		count = 0
-		grid = [[9,-10],[9,2],[-9,2],[-9,-10]]
-		grid_loc_y = [grid[2][1]-grid[0][1],0,grid[0][1]-grid[2][1],0]
-		grid_loc_x = [0,-2,0,-2]
+		#grid = [[9,-10],[9,2],[-9,2],[-9,-10]]
+		grid = [[10,2],[10,-10],[-9,-10],[-9,2]]
 
 		min_dist = math.sqrt((current_x - grid[0][0])**2 + (current_y - grid[0][1])**2)
 		start_x = grid[0][0]
 		start_y = grid[0][1]
+		a = 0
 		for i in range(1, len(grid)):
 			dist = math.sqrt((current_x - grid[i][0])**2 + (current_y - grid[i][1])**2)
 			if dist < min_dist:
 				min_dist = dist
 				start_x = grid[i][0]
 				start_y = grid[i][1]
+				a = i
+		start_x = 40.2
+		start_y = 4.14
+		if a ==0 or a==1:
+			grid_loc_x = [0,-2,0,-2]
+		else:
+			grid_loc_x = [0,2,0,2]
+		if a == 0 or a ==3:
+			grid_loc_y = [grid[2][1]-grid[0][1],0,grid[0][1]-grid[2][1],0]
+		else:
+			grid_loc_y = [grid[0][1]-grid[2][1],0,grid[2][1]-grid[0][1],0]
+
 		#Above
-		distThreshold = 0.2
+		distThreshold = 0.5
 		del_val = 0.004
-		pre_z = 4
+		pre_z = 16
 		flag = False
 		searchEnd = False
 		hover = False
 		a = 0
 		tag_lost_y = 0.0
 		inc = 0.0
-		split_path = 1.0
+		split_path = 2.0
 		prev_x = start_x
 		prev_y = start_y
+		attach = False
+		detach = False
+		probePicked = False
+		probeDeployed = False
 		while not rospy.is_shutdown():
+			print attach, "Attach"
 			if self.isReadyToFly:
 				if self.firstTag:
 					print "tag detected"
@@ -87,67 +104,84 @@ class OffbPosCtl:
 					else:
 						des_x = start_x
 						des_y = start_y
-						print des_x,des_y,"Going to start.."
+						print des_x,des_y,"Going to start:"
 
 				#Above
-				if self.tagDetected and hover == True:
+				if self.tagDetected and hover == True and not attach and not detach:
 					searchEnd = True
 					des_x = self.des_pose.pose.position.x
 					des_y = self.des_pose.pose.position.y
-
-					if abs(del_val*self.x_cam) > 0.2:
-						des_y = curr_y - del_val*self.x_cam
-						print "Correcting x..",des_y, curr_y
-			
-					if abs(del_val*self.y_cam) > 0.2:
-						des_x = curr_x - del_val*self.y_cam
-						print "Correcting y..",des_x, curr_x
-					if abs(del_val*self.x_cam)<0.2 and abs(del_val*self.y_cam)<0.2 and flag == False:
-						#self.tagDetected = False
-						pre_z = des_z - 0.05*des_z
-						des_y = curr_y
-						des_x = curr_x
-						des_z = pre_z
-						if pre_z<0.25:
-							flag = True
-							self.setLandMode()
-							#self.setDisarm()
-							self.tagDetected = False
-							print "Arming",pre_z
-
-						print "Corrected", des_z
-				elif self.tagDetected == False and self.bumperDetected == False:
-					if pre_z < 2:
-						print "Hi", pre_z, des_z
-						distThreshold = 0.1
-						pre_z = pre_z - 0.2
-						des_z = pre_z
-						des_y = curr_y
-						des_x = curr_x
-
-				if self.bumperDetected:
-					print "bumper!!!!!!!!"
-					des_x = 0
-					des_y = 0
-					var_x = self.curr_pose.pose.position.x
-					var_y = self.curr_pose.pose.position.y
-					dis_x = math.sqrt((var_x-des_x)*(var_x-des_x) + (var_y-des_y)*(var_y-des_y))
-					print var_x,var_y
-					if dis_x>distThreshold:
-						des_z = 5
+					if self.curr_pose.pose.position.z >(11.24 + 0.5):
+						if abs(del_val*self.x_cam) > 0.2:
+							des_y = curr_y - del_val*self.x_cam
+							print "Correcting x..",des_y, curr_y
+				
+						if abs(del_val*self.y_cam) > 0.2:
+							des_x = curr_x - del_val*self.y_cam
+							print "Correcting y..",des_x, curr_x
+						if abs(del_val*self.x_cam)<0.2 and abs(del_val*self.y_cam)<0.2 and flag == False:
+							#self.tagDetected = False
+							print "Corrected", des_z, self.curr_pose.pose.position.z
+							pre_z = des_z - 0.05*des_z
+							des_y = curr_y
+							des_x = curr_x
+							des_z = pre_z
+					else: 
+						flag = True
+						#self.setLandMode()
+						#self.setDisarm()
+						self.tagDetected = False
+						print "Z value",pre_z
+						if not attach:
+							self.attach.publish("ATTACH")
+							attach = True
+							probePicked = True
+							rate.sleep()
+	
+				if attach == True:
+					if  self.curr_pose.pose.position.z < 21.8 and probePicked: 
+						des_z = 0.2* self.curr_pose.pose.position.z + self.curr_pose.pose.position.z 
+						print "I'm going up",self.curr_pose.pose.position.z
+						# des_x = 40
+						# des_y = 4
 					else:
-						pre_z = des_z - 0.05*des_z
-						if pre_z<0.25:
-							self.setLandMode()
+						probePicked = False
+						print "Going to drop location"
+						des_x = 84
+						des_y = -54
+						des_z = self.curr_pose.pose.position.z
+						err_x = des_x - self.curr_pose.pose.position.x
+						err_y = des_y - self.curr_pose.pose.position.y
 
-				if self.firstTag and hover and not self.tagDetected and not self.bumperDetected:
+						if abs(err_x) < 0.2: 
+							des_x = curr_x 
+						if abs(err_y) < 0.2:
+							des_y = curr_y 
+						if abs(err_x)<0.2 and abs(err_y)<0.2: 
+							#self.tagDetected = False
+							pre_z = des_z - 0.05*des_z
+							des_y = curr_y
+							des_x = curr_x
+							des_z = pre_z
+							print(self.curr_pose.pose.position.x,self.curr_pose.pose.position.y,self.curr_pose.pose.position.z)
+							if self.curr_pose.pose.position.z<18.7:
+								self.attach.publish("DETACH")
+								print("Detached!!!!!")
+								rospy.sleep(2)
+								attach = False
+								detach = True
+								probeDeployed = True
+
+
+				
+				if self.firstTag and hover and not self.tagDetected and not attach and not detach:
 					des_x = self.curr_pose.pose.position.x
 					des_y = self.curr_pose.pose.position.y + (self.curr_pose.pose.position.y - tag_lost_y)/10.0
 					print("Tag lost")
 					print("Cur: ", self.curr_pose.pose.position.y, "Des: ", des_y)
-					des_z = 6
+					des_z = 18
 					
-				if self.firstTag and hover == False:
+				if self.firstTag and not hover and not probeDeployed:
 					searchEnd = True
 					a += 1
 					if a == 1:
@@ -155,12 +189,17 @@ class OffbPosCtl:
 						y = self.curr_pose.pose.position.y
 					des_x = x
 					des_y = y
-					des_z = 6
+					des_z = 18
 					pre_z = des_z
 					print curr_z, "current z" , x ,self.curr_pose.pose.position.x, y , self.curr_pose.pose.position.y
-					if curr_z >5.9 and curr_x > x-0.1 and curr_x < x+0.1 and curr_y > y-0.1 and curr_y < y+0.1 :
+					if curr_z >17.9 and curr_x > x-0.1 and curr_x < x+0.1 and curr_y > y-0.1 and curr_y < y+0.1 :
 						hover = True
 						print("hovering...")
+
+				if probeDeployed:
+					des_x = 12.62
+					des_y = -65.74
+					des_z = 22
 
 				self.des_pose.pose.position.x = des_x
 				self.des_pose.pose.position.y = des_y
@@ -175,7 +214,7 @@ class OffbPosCtl:
 				#print curr_x , curr_y , curr_z, "Current Pose"
 				if dist < distThreshold:
 					if inc==int(split_path):
-						print inc
+						#print inc
 						count+=1
 						inc = 0
 					if self.isStart == False:
@@ -205,7 +244,7 @@ class OffbPosCtl:
 			x = msg.orientation.x
 			y = msg.orientation.y
 
- 			self.x_cam = x - 320
+			self.x_cam = x - 320
 			self.y_cam = y - 240
 			# print("Camera:",x,y, self.x_cam, self.y_cam)
 		else:
@@ -248,9 +287,6 @@ class OffbPosCtl:
 		except rospy.ServiceException, e:
 				print "service land call failed: %s. The vehicle cannot land "%e
 
-	def bumper_cb(self,msg):
-		if msg.states != [] and self.firstTag:
-			self.bumperDetected = True
 
 
 if __name__ == "__main__":
