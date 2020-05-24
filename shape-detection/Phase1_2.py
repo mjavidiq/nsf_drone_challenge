@@ -12,6 +12,7 @@ from gazebo_msgs.msg import ContactsState
 import math
 import numpy
 from std_msgs.msg import String
+from sensor_msgs.msg import Range
 
 class OffbPosCtl:
 	curr_pose = PoseStamped()
@@ -24,6 +25,7 @@ class OffbPosCtl:
 	x_cam = 0
 	y_cam = 0
 	x_min = 0
+	sonar_height = 0.0
 	
 	def __init__(self):
 		rospy.init_node('offboard_test', anonymous=True)
@@ -32,6 +34,7 @@ class OffbPosCtl:
 		tag_pose = rospy.Subscriber('/our_topic', Pose, callback=self.tag_pose_cb)
 		mocap_sub = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, callback=self.mocap_cb)
 		state_sub = rospy.Subscriber('/mavros/state', State, callback=self.state_cb)
+		sonar_sub = rospy.Subscriber('/sonar', Range, callback=self.sonar_sub_cb)
 		self.attach = rospy.Publisher('/attach', String, queue_size=10)
 
 		rate = rospy.Rate(5)  # Hz
@@ -77,6 +80,7 @@ class OffbPosCtl:
 		searchEnd = False
 		hover = False
 		a = 0
+		drop_check = 0
 		tag_lost_y = 0.0
 		inc = 0.0
 		split_path = 2.0
@@ -84,6 +88,8 @@ class OffbPosCtl:
 		prev_y = start_y
 		attach = False
 		detach = False
+		height_min = 6
+		height_max = 10
 		probePicked = False
 		probeDeployed = False
 		while not rospy.is_shutdown():
@@ -104,6 +110,10 @@ class OffbPosCtl:
 					else:
 						des_x = start_x
 						des_y = start_y
+						if self.sonar_height < height_min and self.tagDetected:
+							des_z = self.curr_pose.pose.position.z + self.curr_pose.pose.position.z * 0.5
+							# des_x = self.curr_pose.pose.position.x
+							# des_y = self.curr_pose.pose.position.y
 						print des_x,des_y,"Going to start:"
 
 				#Above
@@ -111,7 +121,7 @@ class OffbPosCtl:
 					searchEnd = True
 					des_x = self.des_pose.pose.position.x
 					des_y = self.des_pose.pose.position.y
-					if self.curr_pose.pose.position.z >(11.24 + 0.5):
+					if self.sonar_height>0.5:
 						if abs(del_val*self.x_cam) > 0.2:
 							des_y = curr_y - del_val*self.x_cam
 							print "Correcting x..",des_y, curr_y
@@ -139,7 +149,7 @@ class OffbPosCtl:
 							rate.sleep()
 	
 				if attach == True:
-					if  self.curr_pose.pose.position.z < 21.8 and probePicked: 
+					if  self.sonar_height<6 and probePicked: 
 						des_z = 0.2* self.curr_pose.pose.position.z + self.curr_pose.pose.position.z 
 						print "I'm going up",self.curr_pose.pose.position.z
 						# des_x = 40
@@ -150,6 +160,9 @@ class OffbPosCtl:
 						des_x = 84
 						des_y = -54
 						des_z = self.curr_pose.pose.position.z
+						if drop_check==0:
+							if self.sonar_height < height_min:
+								des_z = self.curr_pose.pose.position.z + self.curr_pose.pose.position.z * 0.5
 						err_x = des_x - self.curr_pose.pose.position.x
 						err_y = des_y - self.curr_pose.pose.position.y
 
@@ -157,14 +170,16 @@ class OffbPosCtl:
 							des_x = curr_x 
 						if abs(err_y) < 0.2:
 							des_y = curr_y 
-						if abs(err_x)<0.2 and abs(err_y)<0.2: 
+						
+						if abs(err_x) < 0.2 and abs(err_y) < 0.2:
+							drop_check+=1
 							#self.tagDetected = False
 							pre_z = des_z - 0.05*des_z
 							des_y = curr_y
 							des_x = curr_x
 							des_z = pre_z
 							print(self.curr_pose.pose.position.x,self.curr_pose.pose.position.y,self.curr_pose.pose.position.z)
-							if self.curr_pose.pose.position.z<18.7:
+							if self.sonar_height < 0.8:
 								self.attach.publish("DETACH")
 								print("Detached!!!!!")
 								rospy.sleep(2)
@@ -179,7 +194,7 @@ class OffbPosCtl:
 					des_y = self.curr_pose.pose.position.y + (self.curr_pose.pose.position.y - tag_lost_y)/10.0
 					print("Tag lost")
 					print("Cur: ", self.curr_pose.pose.position.y, "Des: ", des_y)
-					des_z = 18
+					des_z = self.curr_pose.pose.position.z
 					
 				if self.firstTag and not hover and not probeDeployed:
 					searchEnd = True
@@ -187,19 +202,46 @@ class OffbPosCtl:
 					if a == 1:
 						x = self.curr_pose.pose.position.x
 						y = self.curr_pose.pose.position.y
+						z = self.curr_pose.pose.position.z 
 					des_x = x
 					des_y = y
-					des_z = 18
+					des_z = z + 2
 					pre_z = des_z
 					print curr_z, "current z" , x ,self.curr_pose.pose.position.x, y , self.curr_pose.pose.position.y
-					if curr_z >17.9 and curr_x > x-0.1 and curr_x < x+0.1 and curr_y > y-0.1 and curr_y < y+0.1 :
+					if curr_z > z+2 and curr_x > x-0.1 and curr_x < x+0.1 and curr_y > y-0.1 and curr_y < y+0.1 :
 						hover = True
 						print("hovering...")
 
 				if probeDeployed:
 					des_x = 12.62
 					des_y = -65.74
-					des_z = 22
+					
+					err_x = des_x - self.curr_pose.pose.position.x
+					err_y = des_y - self.curr_pose.pose.position.y	
+
+					if self.sonar_height < height_min:
+						des_z = self.curr_pose.pose.position.z + self.curr_pose.pose.position.z * 0.5
+					elif self.sonar_height > height_max:
+						des_z = self.curr_pose.pose.position.z - self.curr_pose.pose.position.z * 0.5
+
+					if abs(err_x) < 0.2 and abs(err_y) < 0.2:
+						if self.tagDetected:
+							if abs(del_val*self.x_cam) > 0.2:
+								des_y = curr_y - del_val*self.x_cam
+								print "Correcting x..",des_y, curr_y
+					
+							if abs(del_val*self.y_cam) > 0.2:
+								des_x = curr_x - del_val*self.y_cam
+								print "Correcting y..",des_x, curr_x
+							if abs(del_val*self.x_cam)<0.2 and abs(del_val*self.y_cam)<0.2:
+								#self.tagDetected = False
+								print "Corrected", des_z, self.curr_pose.pose.position.z
+								pre_z = des_z - 0.05*des_z
+								des_y = curr_y
+								des_x = curr_x
+								des_z = pre_z
+
+					
 
 				self.des_pose.pose.position.x = des_x
 				self.des_pose.pose.position.y = des_y
@@ -249,6 +291,10 @@ class OffbPosCtl:
 			# print("Camera:",x,y, self.x_cam, self.y_cam)
 		else:
 			self.tagDetected = False
+
+	def sonar_sub_cb(self,msg):
+		print "Distance from ground: ", msg.range
+		self.sonar_height = msg.range
 
 #################DO NOT TOUCH BELOW #########################
 	def copy_pose(self, pose):
