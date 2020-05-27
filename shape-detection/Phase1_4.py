@@ -56,11 +56,16 @@ class OffbPosCtl:
 		drop_check = 0
 		tag_lost_y = 0.0
 		split_path = 2.0
-		start_x = 40.59+10
+		start_x = 40.59
 		start_y = 3.74
+		rover_x = 12.62
+		rover_y = -65.74
 
 		grid_loc_x = [start_x-10, start_x, start_x+10, start_x] 
 		grid_loc_y = [start_y, start_y+10,start_y,start_y-10]
+
+		land_x = [rover_x,rover_x-10, rover_x, rover_x+10, rover_x] 
+		land_y = [rover_y,rover_y, rover_y+10,rover_y,rover_y-10]
 
 		#Local Flags
 		attach = False
@@ -70,7 +75,9 @@ class OffbPosCtl:
 		probePicked = False
 		probeDeployed = False
 		useSonar = True
+		random = False
 		count = -1
+		counter= 0
 		des_x =  start_x
 		des_y =  start_y
 		des_z =  pre_z
@@ -83,11 +90,12 @@ class OffbPosCtl:
 					
 				# des_x =  start_x
 				# des_y =  start_y
-
 				#Going to Probe Location
 				if not self.isStart:
 					if self.sonar_height < height_min and not self.tagDetected:
-						des_z = self.curr_pose.pose.position.z + (height_min-self.sonar_height)*6
+						des_z = self.curr_pose.pose.position.z + 0.5 #(height_min-self.sonar_height)*0.5
+						des_x = self.curr_pose.pose.position.x
+						des_y = self.curr_pose.pose.position.y
 					else:
 						des_x = start_x
 						des_y = start_y
@@ -107,7 +115,7 @@ class OffbPosCtl:
 					des_x = self.des_pose.pose.position.x
 					des_y = self.des_pose.pose.position.y
 					des_z = self.des_pose.pose.position.z
-					if self.sonar_height>0.5:
+					if self.sonar_height>0.5: # and self.sonar_height<height_max:
 						if abs(del_val*self.x_cam) > err_thresh:
 							des_y = curr_y - del_val*self.x_cam
 							print "Correcting x..",des_y, curr_y
@@ -122,6 +130,8 @@ class OffbPosCtl:
 							des_y = curr_y
 							des_x = curr_x
 							des_z = pre_z
+					# elif self.sonar_height>height_max:
+					# 	des_z = self.curr_pose.pose.position.z - (self.sonar_height-height_max)
 					else: 
 						self.tagDetected = False
 						print "Z value",pre_z
@@ -159,7 +169,7 @@ class OffbPosCtl:
 						if abs(err_y) < err_thresh:
 							des_y = curr_y 
 						# if abs(err_x) < err_thresh+0.2 and abs(err_y) < err_thresh+0.2:
-						if abs(err_x) < self.sonar_height*0.2 and abs(err_y) < self.sonar_height*0.2: 
+						if abs(err_x) < self.sonar_height*0.1 and abs(err_y) < self.sonar_height*0.1: 
 							drop_check+=1
 							pre_z = des_z - 0.1*des_z
 							des_y = curr_y
@@ -177,8 +187,8 @@ class OffbPosCtl:
 
 				# Landing on Rover
 				if probeDeployed:
-					des_x = 12.62
-					des_y = -65.74
+					des_x = land_x[counter]
+					des_y = land_y[counter]
 					
 					err_x = des_x - self.curr_pose.pose.position.x
 					err_y = des_y - self.curr_pose.pose.position.y	
@@ -191,6 +201,7 @@ class OffbPosCtl:
 					if abs(err_x) < 1 and abs(err_y) < 1:
 						useSonar = False
 					if self.tagDetected and not useSonar:
+						random = True
 						if abs(del_val*self.x_cam) > err_thresh:
 							des_y = curr_y - del_val*self.x_cam
 							print "Correcting x..",des_y, self.curr_pose.pose.position.y
@@ -212,6 +223,15 @@ class OffbPosCtl:
 								setModeService(custom_mode="AUTO.LAND")
 							except rospy.ServiceException, e:
 								print "Service takeoff call failed: %s"%e
+					if random and not self.tagDetected:
+						des_x = land_x[counter]
+						des_y = land_y[counter]
+						err_x = des_x - self.curr_pose.pose.position.x
+						err_y = des_y - self.curr_pose.pose.position.y
+						random = False		
+					if not self.tagDetected and not useSonar and counter<4 and abs(err_x) < 1 and abs(err_y) < 1:
+						counter+=1
+						useSonar = True
 
 				# GoBack Feature/Safety Not Necessary
 				# if self.firstTag and not self.tagDetected and not attach and not detach:

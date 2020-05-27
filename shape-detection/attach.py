@@ -78,7 +78,7 @@ if __name__ == '__main__':
 
             # 15 degree threshold and magnitude is less than 0.6 meters, attach works
             print mag , degrees
-            if mag < 0.6 and degrees < 30:
+            if mag < 1.0 and degrees < 30:
                 rospy.loginfo("Creating ServiceProxy to /link_attacher_node/attach")
                 attach_srv = rospy.ServiceProxy('/link_attacher_node/attach',
                                                 Attach)

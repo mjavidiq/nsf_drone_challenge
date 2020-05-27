@@ -59,9 +59,9 @@ class Obj_det():
 						cY = int((M["m01"] / M["m00"]) * ratio)
 						self.subs_pose_info.position.x = 1
 					else:
-						cX = 0
-						cY = 0 
-						self.subs_pose_info.position.x = 0
+						cX = 320
+						cY = 240 
+						self.subs_pose_info.position.x = 1
 					shape = sd.detect(c)
 
 					# multiply the contour (x, y)-coordinates by the resize ratio,
