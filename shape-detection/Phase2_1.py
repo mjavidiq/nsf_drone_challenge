@@ -33,7 +33,6 @@ class OffbPosCtl:
 		#ROS Initializations
 		rospy.init_node('offboard_test', anonymous=True)
 		pose_pub = rospy.Publisher('/uav1/mavros/setpoint_position/local', PoseStamped, queue_size=10)
-		vel_pub = rospy.Publisher('/uav1/mavros/setpoint_velocity/cmd_vel_unstamped', Twist, queue_size=10)
 		tag_pose = rospy.Subscriber('/our_topic', Pose, callback=self.tag_pose_cb)
 		mocap_sub = rospy.Subscriber('/uav1/mavros/local_position/pose', PoseStamped, callback=self.mocap_cb)
 		state_sub = rospy.Subscriber('/uav1/mavros/state', State, callback=self.state_cb)
