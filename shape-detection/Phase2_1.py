@@ -29,6 +29,8 @@ class OffbPosCtl:
 	sonar_height = 0.0
 	sonar0_height = 0.0
 	sonar1_height = 0.0
+	rover_x = 0
+	rover_y = 0
 	def __init__(self):
 		#ROS Initializations
 		rospy.init_node('offboard_test', anonymous=True)
@@ -36,6 +38,7 @@ class OffbPosCtl:
 		tag_pose = rospy.Subscriber('/our_topic', Pose, callback=self.tag_pose_cb)
 		mocap_sub = rospy.Subscriber('/uav1/mavros/local_position/pose', PoseStamped, callback=self.mocap_cb)
 		state_sub = rospy.Subscriber('/uav1/mavros/state', State, callback=self.state_cb)
+		rover_sub = rospy.Subscriber('/uav0/mavros/local_position/pose', PoseStamped, callback=self.rover_cb)
 		sonar_sub = rospy.Subscriber('/sonar', Range, callback=self.sonar_sub_cb)
 		sonar1_sub = rospy.Subscriber('/sonar1', Range, callback=self.sonar1_sub_cb)
 		self.attach = rospy.Publisher('/attach', String, queue_size=10)
@@ -59,22 +62,24 @@ class OffbPosCtl:
 		split_path = 2.0
 		start_x = 84.72
 		start_y = -54.40
-		rover_x = 12.62
-		rover_y = -65.74
+
 		a = 0
 		b = 0
 
-		grid_loc_x = [start_x , start_x-10, start_x, start_x+10, start_x] 
-		grid_loc_y = [start_y, start_y, start_y+10,start_y,start_y-10]
+		# grid_loc_x = [start_x , start_x-10, start_x, start_x+10, start_x] 
+		# grid_loc_y = [start_y, start_y, start_y+10,start_y,start_y-10]
 
-		land_x = [rover_x,rover_x-10, rover_x, rover_x+10, rover_x] 
-		land_y = [rover_y,rover_y, rover_y+10,rover_y,rover_y-10]
+		grid_loc_x = [start_x , start_x, start_x, start_x, start_x] 
+		grid_loc_y = [start_y, start_y, start_y,start_y,start_y]
+
+		# land_x = [rover_x,rover_x-10, rover_x, rover_x+10, rover_x] 
+		# land_y = [rover_y,rover_y, rover_y+10,rover_y,rover_y-10]
 
 		#Local Flags
 		attach = False
 		detach = False
-		height_min = 7
-		height_max = 12
+		height_min = 6
+		height_max = 9
 		probePicked = False
 		probeDeployed = False
 		useSonar = True
@@ -97,13 +102,15 @@ class OffbPosCtl:
 				#Going to Probe Location
 				if not self.isStart:
 					if self.sonar_height < height_min and not self.tagDetected:
-						des_z = self.curr_pose.pose.position.z + 2 #(height_min-self.sonar_height)*0.5
+						des_z = self.curr_pose.pose.position.z + .8 #(height_min-self.sonar_height)*0.5
 						des_x = self.curr_pose.pose.position.x
 						des_y = self.curr_pose.pose.position.y
 					else:
 						des_x = start_x
 						des_y = start_y
 						print "Hola"
+					if self.sonar_height > height_max:
+						des_z = self.curr_pose.pose.position.z - (self.sonar_height-height_max)
 					print "Going to start:",des_x,des_y
 				if self.isStart and not self.firstTag:
 					if self.sonar_height < height_min:
@@ -169,9 +176,9 @@ class OffbPosCtl:
 
 						if drop_check==0:
 							if self.sonar_height < height_min:
-								des_z = self.curr_pose.pose.position.z + self.curr_pose.pose.position.z * 0.5
+								des_z = self.curr_pose.pose.position.z + 0.5
 							elif self.sonar_height > height_max:
-								des_z = self.curr_pose.pose.position.z - self.curr_pose.pose.position.z * 0.5
+								des_z = self.curr_pose.pose.position.z - 0.5*(self.sonar_height)
 
 						err_x = des_x - self.curr_pose.pose.position.x
 						err_y = des_y - self.curr_pose.pose.position.y
@@ -183,7 +190,7 @@ class OffbPosCtl:
 						# if abs(err_x) < err_thresh+0.2 and abs(err_y) < err_thresh+0.2:
 						if abs(err_x) < self.sonar_height*0.1 and abs(err_y) < self.sonar_height*0.1: 
 							drop_check+=1
-							pre_z = des_z - 0.1*des_z
+							pre_z = des_z - 0.5*self.sonar_height
 							des_y = curr_y
 							des_x = curr_x
 							des_z = pre_z
@@ -199,8 +206,8 @@ class OffbPosCtl:
 
 				# Landing on Rover
 				if probeDeployed:
-					des_x = land_x[counter]
-					des_y = land_y[counter]
+					des_x = self.rover_x
+					des_y = self.rover_y
 					
 					err_x = des_x - self.curr_pose.pose.position.x
 					err_y = des_y - self.curr_pose.pose.position.y	
@@ -281,7 +288,6 @@ class OffbPosCtl:
 					prev_y = des_y
 
 			pose_pub.publish(self.des_pose)
-			vel_pub.publish(self.vel)
 			rate.sleep()
 		
 
@@ -305,6 +311,10 @@ class OffbPosCtl:
 	def sonar1_sub_cb(self,msg):
 		print "sonar1: ", msg.range
 		self.sonar1_height = msg.range
+
+	def rover_cb(self,msg):
+		self.rover_x = msg.pose.position.x
+		self.rover_y = msg.pose.position.y
 #################DO NOT TOUCH BELOW #########################
 	def copy_pose(self, pose):
 		pt = pose.pose.position

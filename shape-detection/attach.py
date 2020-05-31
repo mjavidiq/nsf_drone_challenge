@@ -47,7 +47,7 @@ def set_mode(msg):
 
 if __name__ == '__main__':
     rospy.init_node('demo_attach_links')
-    iris = GazeboLinkPose('iris')
+    iris = GazeboLinkPose('iris_1')
     probe = GazeboLinkPose('sample_probe')
     mag = 1
     degrees = 90
@@ -88,7 +88,7 @@ if __name__ == '__main__':
                 # Link them
                 rospy.loginfo("Attach drone to sample probe")
                 req = AttachRequest()
-                req.model_name_1 = "iris"
+                req.model_name_1 = "iris_1"
                 req.link_name_1 = "base_link"
                 req.model_name_2 = "sample_probe"
                 req.link_name_2 = "base_link"
@@ -104,7 +104,7 @@ if __name__ == '__main__':
             # Link them
             rospy.loginfo("Detaching iris and sample_probe")
             req = AttachRequest()
-            req.model_name_1 = "iris"
+            req.model_name_1 = "iris_1"
             req.link_name_1 = "base_link"
             req.model_name_2 = "sample_probe"
             req.link_name_2 = "base_link"
