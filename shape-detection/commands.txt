@@ -2,6 +2,6 @@ roslaunch cps_challenge_2020 phase-1.launch
 python Phase1_1.py
 python cam_detect_shapes.py
 python attach.py
-rosservice call /mavros/set_mode "custom_mode: 'OFFBOARD'"
-rosservice call /mavros/cmd/arming "value: true"
+rosservice call /uav1/mavros/set_mode "custom_mode: 'OFFBOARD'"
+rosservice call /uav1/mavros/cmd/arming "value: true"
 rqt

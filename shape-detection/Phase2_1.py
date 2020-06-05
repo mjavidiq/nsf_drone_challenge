@@ -92,7 +92,7 @@ class OffbPosCtl:
 
 		while not rospy.is_shutdown():
 			print attach, "Attach"
-			self.sonar_height = (self.sonar0_height  + self.sonar1_height)/2
+			self.sonar_height = (self.sonar0_height)  #+ self.sonar1_height)/2
 			if self.isReadyToFly:
 				if self.firstTag:
 					print "tag detected"
@@ -102,9 +102,9 @@ class OffbPosCtl:
 				#Going to Probe Location
 				if not self.isStart:
 					if self.sonar_height < height_min and not self.tagDetected:
-						des_z = self.curr_pose.pose.position.z + .8 #(height_min-self.sonar_height)*0.5
-						des_x = self.curr_pose.pose.position.x
-						des_y = self.curr_pose.pose.position.y
+						des_z = self.curr_pose.pose.position.z + 12 #(height_min-self.sonar_height)*0.5
+						# des_x = self.curr_pose.pose.position.x
+						# des_y = self.curr_pose.pose.position.y
 					else:
 						des_x = start_x
 						des_y = start_y
@@ -163,7 +163,7 @@ class OffbPosCtl:
 						if a >100:
 							sonar_height = sonar0_height
 					if  self.sonar_height<6 and probePicked: 
-						des_z = 0.2* self.curr_pose.pose.position.z + self.curr_pose.pose.position.z 
+						des_z = self.curr_pose.pose.position.z + 1*(self.sonar_height)
 						print "I'm going up",self.curr_pose.pose.position.z
 						# des_x = 40
 						# des_y = 4
@@ -213,9 +213,9 @@ class OffbPosCtl:
 					err_y = des_y - self.curr_pose.pose.position.y	
 
 					if self.sonar_height < height_min and useSonar:
-						des_z = self.curr_pose.pose.position.z + self.curr_pose.pose.position.z * 0.5
+						des_z = self.curr_pose.pose.position.z + 4*(self.sonar_height)
 					elif self.sonar_height > height_max and useSonar:
-						des_z = self.curr_pose.pose.position.z - self.curr_pose.pose.position.z * 0.5
+						des_z = self.curr_pose.pose.position.z - 0.5*(self.sonar_height)
 
 					if abs(err_x) < 1 and abs(err_y) < 1:
 						useSonar = False
@@ -243,13 +243,12 @@ class OffbPosCtl:
 							except rospy.ServiceException, e:
 								print "Service takeoff call failed: %s"%e
 					if random and not self.tagDetected:
-						des_x = land_x[counter]
-						des_y = land_y[counter]
+						des_x = self.rover_x
+						des_y = self.rover_y
 						err_x = des_x - self.curr_pose.pose.position.x
 						err_y = des_y - self.curr_pose.pose.position.y
 						random = False		
-					if not self.tagDetected and not useSonar and counter<4 and abs(err_x) < 1 and abs(err_y) < 1:
-						counter+=1
+					if not self.tagDetected and not useSonar and abs(err_x) < 1 and abs(err_y) < 1:
 						useSonar = True
 
 				# GoBack Feature/Safety Not Necessary
