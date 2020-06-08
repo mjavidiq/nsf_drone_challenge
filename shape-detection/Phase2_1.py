@@ -81,7 +81,7 @@ class OffbPosCtl:
 		height_min = 6
 		height_max = 9
 		probePicked = False
-		probeDeployed = False
+		probeDeployed = True
 		useSonar = True
 		random = False
 		count = 0
@@ -163,7 +163,7 @@ class OffbPosCtl:
 						if a >100:
 							sonar_height = sonar0_height
 					if  self.sonar_height<6 and probePicked: 
-						des_z = self.curr_pose.pose.position.z + 1*(self.sonar_height)
+						des_z = self.curr_pose.pose.position.z + 2*(self.sonar_height)
 						print "I'm going up",self.curr_pose.pose.position.z
 						# des_x = 40
 						# des_y = 4

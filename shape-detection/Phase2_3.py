@@ -23,7 +23,7 @@ class OffbPosCtl:
 	isReadyToFly = False
 	tagDetected = False
 	firstTag = False
-	isStart = True
+	isStart = False
 
 	#Global Variables
 	x_cam = 0
@@ -34,6 +34,7 @@ class OffbPosCtl:
 	sonar1_height = 0.0
 	rover_x = 0
 	rover_y = 0
+	probeDeployed = False
 
 	def __init__(self):
 		#ROS Initializations
@@ -67,7 +68,7 @@ class OffbPosCtl:
 		split_path = 2.0
 		start_x = 84.72
 		start_y = -54.40
-
+		prev_vel = Twist()
 		a = 0
 		b = 0
 
@@ -80,20 +81,22 @@ class OffbPosCtl:
 		height_min = 6
 		height_max = 9
 		probePicked = False
-		probeDeployed = True
+		
 		useSonar = True
 		random = False
 		someFlag = False
 		count = 0
 		counter= 0
 		vel_control = False
-		des_x =  start_x
-		des_y =  start_y
-		des_z =  pre_z
+		des_x = start_x
+		des_y = start_y
+		des_z = pre_z
+		prev_x = 0
+		prev_y = 0
 
 
 		while not rospy.is_shutdown():
-			print self.firstTag, "Tag"
+			print (self.probeDeployed)
 			self.sonar_height = (self.sonar0_height)  #+ self.sonar1_height)/2
 			self.model_coordinates = rospy.ServiceProxy('/gazebo/get_model_state',GetModelState)
 			self.object_coordinates = self.model_coordinates('rover_0',"")
@@ -103,8 +106,114 @@ class OffbPosCtl:
 				rate.sleep()
 				self.setArm()
 			if self.isReadyToFly:
+				if self.firstTag:
+					print "tag detected"		
+				# des_x =  start_x
+				# des_y =  start_y
+				#Going to Probe Location
+				if not self.isStart:
+					if self.sonar_height < height_min and not self.tagDetected:
+						des_z = self.curr_pose.pose.position.z + 14 #(height_min-self.sonar_height)*0.5
+						# des_x = self.curr_pose.pose.position.x
+						# des_y = self.curr_pose.pose.position.y
+					else:
+						des_x = start_x
+						des_y = start_y
+						print "Hola"
+					if self.sonar_height > height_max:
+						des_z = self.curr_pose.pose.position.z - (self.sonar_height-height_max)
+					print "Going to start:",des_x,des_y
+				if self.isStart and not self.firstTag:
+					if self.sonar_height < height_min:
+						des_z = self.curr_pose.pose.position.z + (height_min-self.sonar_height)
+					elif self.sonar_height > height_max:
+						des_z = self.curr_pose.pose.position.z - (self.sonar_height-height_max)
+					des_x = grid_loc_x[count]
+					des_y = grid_loc_y[count]
+					print ("Reached, Tag not detected :", des_x , des_y, des_z)
 
-				if probeDeployed:
+				#Visual Surveying and Attaching Probe
+				if self.tagDetected and self.isStart and not attach and not detach:
+					des_x = self.des_pose.pose.position.x
+					des_y = self.des_pose.pose.position.y
+					des_z = self.des_pose.pose.position.z
+					if self.sonar_height>0.5: # and self.sonar_height<height_max:
+						if abs(del_val*self.x_cam) > err_thresh:
+							des_y = curr_y - del_val*self.x_cam
+							print "Correcting x..",des_y, curr_y
+						if abs(del_val*self.y_cam) > err_thresh:
+							des_x = curr_x - del_val*self.y_cam
+							print "Correcting y..",des_x, curr_x
+						if abs(del_val*self.x_cam)<err_thresh and abs(del_val*self.y_cam)<err_thresh:
+							#self.tagDetected = False
+							print "Corrected", des_z, self.curr_pose.pose.position.z
+							pre_z = des_z - 0.05*des_z
+							des_y = curr_y
+							des_x = curr_x
+							des_z = pre_z
+					# elif self.sonar_height>height_max:
+					# 	des_z = self.curr_pose.pose.position.z - (self.sonar_height-height_max)
+					else: 
+						self.tagDetected = False
+						print "Z value",pre_z
+						if not attach:
+							self.attach.publish("ATTACH")
+							attach = True
+							probePicked = True
+							rate.sleep()
+
+				# Going to Detach Location
+				if attach == True:
+					if self.sonar0_height < 1:
+						a +=1
+						if a >100:
+							self.sonar_height = self.sonar1_height
+					if self.sonar1_height < 1:
+						b +=1
+						if a >100:
+							self.sonar_height = self.sonar0_height
+					if  self.sonar_height<6 and probePicked: 
+						des_z = self.curr_pose.pose.position.z + 2*(self.sonar_height)
+						print "I'm going up",self.curr_pose.pose.position.z
+						# des_x = 40
+						# des_y = 4
+					else:
+						probePicked = False
+						print "Going to drop location"
+						des_x = -75.99
+						des_y = 425.00
+						des_z = self.curr_pose.pose.position.z
+
+						if drop_check==0:
+							if self.sonar_height < height_min:
+								des_z = self.curr_pose.pose.position.z + 2
+							elif self.sonar_height > height_max:
+								des_z = self.curr_pose.pose.position.z - 0.5*(self.sonar_height)
+
+						err_x = des_x - self.curr_pose.pose.position.x
+						err_y = des_y - self.curr_pose.pose.position.y
+
+						if abs(err_x) < err_thresh: 
+							des_x = curr_x 
+						if abs(err_y) < err_thresh:
+							des_y = curr_y 
+						# if abs(err_x) < err_thresh+0.2 and abs(err_y) < err_thresh+0.2:
+						if abs(err_x) < self.sonar_height*0.1 and abs(err_y) < self.sonar_height*0.1: 
+							drop_check+=1
+							pre_z = des_z - 0.5*self.sonar_height
+							des_y = curr_y
+							des_x = curr_x
+							des_z = pre_z
+							print(self.curr_pose.pose.position.x,self.curr_pose.pose.position.y,self.curr_pose.pose.position.z)
+
+						if self.sonar_height <1.5 and abs(err_x) < 1 and abs(err_y) < 1:
+							self.attach.publish("DETACH")
+							print("Detached!!!!!")
+							rospy.sleep(2)
+							attach = False
+							detach = True
+							self.probeDeployed = True
+				if self.probeDeployed:
 					vel_control = False
 					# Using rover's position estimate
 					des_x = self.rover_x - 1
@@ -113,34 +222,45 @@ class OffbPosCtl:
 					# Using state information from Gazebo
 					# des_x = self.object_coordinates.pose.position.x - 1
 					# des_y = self.object_coordinates.pose.position.y
-					
+					err_x = self.curr_pose.pose.position.x - des_x
+					err_y = self.curr_pose.pose.position.y - des_y
+
 					des_z = self.curr_pose.pose.position.z
+					# if prev_y > des_y :
+					# 	des_x = prev_x
+					# 	des_y = prev_y
+					# 	prev_vel = prev_vel
+					# else:
+					prev_x = des_x
+					prev_y = des_y
+					prev_vel = self.vel  
 
 					if self.sonar_height < height_min and not self.tagDetected:
-						des_z = self.curr_pose.pose.position.z + 2*(self.sonar_height) #4 for ditch avoiding
+						des_z = self.curr_pose.pose.position.z + 10*(self.sonar_height) #4 for ditch avoiding
 					elif self.sonar_height > height_max and not self.tagDetected:
 						des_z = self.curr_pose.pose.position.z - 0.5*(self.sonar_height)
 
-					if self.tagDetected:
+					if self.tagDetected and abs(err_x)<2 and abs(err_y)<2:
 						vel_control = True
-						height_min = 1.8
+						# height_min = 1.8
 						self.vel.linear.z = 0
 
 						if abs(del_val*self.y_cam)> err_thresh:
-							self.vel.linear.x = self.vel.linear.x - 1*del_val*self.y_cam
+							prev_vel.linear.x = prev_vel.linear.x - 1*del_val*self.y_cam
 							print(del_val*self.y_cam, err_thresh, "Threshold exceeded")
 						if (del_val*self.x_cam)> err_thresh:
-							self.vel.linear.y = self.vel.linear.y - 1*del_val*self.x_cam
+							prev_vel.linear.y = prev_vel.linear.y - 1.25*del_val*self.x_cam*self.sonar_height/6.0
 							print(del_val*self.y_cam, err_thresh, "Threshold exceeded")
-						elif (del_val*self.x_cam)< -err_thresh:
-							self.vel.linear.y = self.vel.linear.y - 1.25*del_val*self.x_cam
+						elif (del_val*self.x_cam)< -err_thresh: # Forward motion
+							prev_vel.linear.y = prev_vel.linear.y - 1.75*del_val*self.x_cam*self.sonar_height/6.0
 							print(del_val*self.y_cam, err_thresh, "Threshold exceeded")
 						if abs(del_val*self.x_cam)< err_thresh and abs(del_val*self.y_cam)< err_thresh:
-							self.vel.linear.z = -2.5
+							height_min = 0.9
+							prev_vel.linear.z = -5.0
 
-						print("Published velocity:",self.vel)
+						print("Published velocity:",prev_vel)
 
-						if self.sonar_height < 1.2:
+						if self.sonar_height < 0.9:
 							rospy.wait_for_service('/uav1/mavros/set_mode')
 							try:
 								setModeService = rospy.ServiceProxy('/uav1/mavros/set_mode', mavros_msgs.srv.SetMode)
@@ -195,9 +315,12 @@ class OffbPosCtl:
 				self.tagDetected = True
 			x = msg.orientation.x
 			y = msg.orientation.y
-
-			self.x_cam = x - 320
-			self.y_cam = y - 240
+			if not self.probeDeployed and msg.position.y==0:
+				self.x_cam = x - 320
+				self.y_cam = y - 240
+			elif self.probeDeployed and msg.position.y==1:
+				self.x_cam = x - 320
+				self.y_cam = y - 240
 		else:
 			self.tagDetected = False
 

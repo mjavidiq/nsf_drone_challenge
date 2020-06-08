@@ -1,4 +1,4 @@
-roslaunch cps_challenge_2020 phase-1.launch
+roslaunch cps_challenge_2020 phase-2.launch
 python Phase1_1.py
 python cam_detect_shapes.py
 python attach.py

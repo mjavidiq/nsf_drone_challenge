@@ -63,21 +63,19 @@ class Obj_det():
 						cY = 240 
 						self.subs_pose_info.position.x = 1
 					shape = sd.detect(c)
-
+					print(shape)
 					# multiply the contour (x, y)-coordinates by the resize ratio,
 					# then draw the contours and the name of the shape on the image
 					if shape=="circle":
-						
 						self.subs_pose_info.orientation.x = cX
 						self.subs_pose_info.orientation.y = cY
-
-						print("x:", cX, " y:",cY)
-						c = c.astype("float")
-						c *= ratio
-						c = c.astype("int")
-						cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
-						cv2.putText(image, shape, (cX, cY), cv2.FONT_HERSHEY_SIMPLEX,
-							0.5, (255, 255, 255), 2)
+						self.subs_pose_info.position.y = 0
+						print("x:", cX, " y:",cY,"Circle")
+					if shape=="square" or shape=="rectangle":
+						self.subs_pose_info.orientation.x = cX
+						self.subs_pose_info.orientation.y = cY
+						self.subs_pose_info.position.y = 1
+						print("x:", cX, " y:",cY,"4 sides")
 
 						# show the output image
 						#cv2.imshow("Detected", image)
